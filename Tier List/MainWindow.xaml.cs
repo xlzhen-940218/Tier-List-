@@ -4,11 +4,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+
 namespace Tier_List
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class MainWindow : Window
     {
         public MainWindow()
@@ -30,6 +28,16 @@ namespace Tier_List
 
                 if (targetPanel != null)
                 {
+                    // 关键点：获取父级 ScrollViewer，它的高度就是当前行被分配到的真实高度
+                    ScrollViewer parentScroll = targetPanel.Parent as ScrollViewer;
+
+                    // 绑定尺寸改变事件，确保后续拉伸窗口大小时，图片依然自适应
+                    if (parentScroll != null)
+                    {
+                        parentScroll.SizeChanged -= ParentScroll_SizeChanged; // 防止重复订阅
+                        parentScroll.SizeChanged += ParentScroll_SizeChanged;
+                    }
+
                     foreach (string file in files)
                     {
                         try
@@ -49,10 +57,15 @@ namespace Tier_List
                                 Image imageControl = new Image
                                 {
                                     Source = bitmap,
-                                    Height = 80, // 固定高度，宽度会根据比例自适应
                                     Stretch = Stretch.Uniform,
                                     Margin = new Thickness(5)
                                 };
+
+                                // 初始加载时赋予自适应高度 (减去上下边距共10像素，防止出现不必要的垂直滚动条)
+                                if (parentScroll != null)
+                                {
+                                    imageControl.Height = Math.Max(0, parentScroll.ActualHeight - 10);
+                                }
 
                                 // 将图片添加到对应的行中
                                 targetPanel.Children.Add(imageControl);
@@ -62,6 +75,22 @@ namespace Tier_List
                         {
                             MessageBox.Show($"无法加载图片: {file}\n错误信息: {ex.Message}");
                         }
+                    }
+                }
+            }
+        }
+
+        // 当窗口缩放导致 ScrollViewer 高度改变时，重新计算该行内所有图片的高度
+        private void ParentScroll_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (sender is ScrollViewer scrollViewer && scrollViewer.Content is WrapPanel wrapPanel)
+            {
+                foreach (UIElement child in wrapPanel.Children)
+                {
+                    if (child is FrameworkElement fe)
+                    {
+                        // 动态更新高度，减去 10 依然是预留给 Margin (上下各5)
+                        fe.Height = Math.Max(0, e.NewSize.Height - 10);
                     }
                 }
             }
